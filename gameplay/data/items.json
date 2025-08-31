@@ -1,0 +1,25 @@
+{
+  "sword": {
+    "name": "Iron Sword",
+    "glyph": "/",
+    "color": "gray",
+    "components": {
+      "CWeapon": {
+        "damage_dice": "1d6+STR",
+        "damage_type": "Physical",
+        "reach": 1
+      }
+    }
+  },
+  "leather_armor": {
+    "name": "Leather Armor", 
+    "glyph": "[",
+    "color": "brown",
+    "components": {
+      "CArmor": {
+        "soak_dice": "1d2",
+        "resist": {"Physical": 0.1}
+      }
+    }
+  }
+}

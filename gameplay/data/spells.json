@@ -1,0 +1,17 @@
+{
+  "firebolt": {
+    "name": "Firebolt",
+    "mp_cost": 3,
+    "damage_dice": "1d8+INT/2", 
+    "damage_type": "Fire",
+    "target_type": "single",
+    "range": 5
+  },
+  "heal": {
+    "name": "Minor Heal",
+    "mp_cost": 5,
+    "heal_dice": "2d4+INT/3",
+    "target_type": "self",
+    "range": 0
+  }
+}

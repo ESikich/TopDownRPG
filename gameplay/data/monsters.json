@@ -1,0 +1,32 @@
+{
+  "slime": {
+    "name": "Green Slime",
+    "glyph": "s", 
+    "color": "green",
+    "components": {
+      "CHealth": {"hp": 15, "max_hp": 15},
+      "CStats": {
+        "strength": 8, "agility": 6, "intellect": 2,
+        "accuracy": 5, "evasion": 2, "crit_chance": 5.0, "crit_mult": 2.0
+      },
+      "CAI": {"behavior": "chase"}
+    }
+  },
+  "orc": {
+    "name": "Orc Warrior",
+    "glyph": "o",
+    "color": "red", 
+    "components": {
+      "CHealth": {"hp": 25, "max_hp": 25},
+      "CStats": {
+        "strength": 12, "agility": 8, "intellect": 4,
+        "accuracy": 8, "evasion": 4, "crit_chance": 8.0, "crit_mult": 2.0
+      },
+      "CAI": {"behavior": "chase"},
+      "CArmor": {
+        "soak_dice": "1d3",
+        "resist": {"Physical": 0.15}
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+# config/keybinds.toml
+[movement]
+up = ["w", "up"]
+down = ["s", "down"]
+left = ["a", "left"]
+right = ["d", "right"]
+
+[actions]
+wait = ["space"]
+inventory = ["i"]
+spellbook = ["c"]
+descend = ["period"]
+restart = ["r"]
+pause = ["escape"]

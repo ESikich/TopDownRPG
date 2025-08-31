@@ -1,0 +1,10 @@
+{
+  "basic_monster": {
+    "items": [
+      {"id": "sword", "weight": 10},
+      {"id": "leather_armor", "weight": 5}
+    ],
+    "gold_min": 1,
+    "gold_max": 10
+  }
+}
