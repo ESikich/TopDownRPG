@@ -1,62 +1,88 @@
 # util/pathfinding.py
 """A* pathfinding utilities"""
 import heapq
-from typing import List, Optional, Tuple, Callable
+from typing import Dict, List, Optional, Tuple, Protocol, Sequence
 from core.types import Point
 
-def find_path(start: Point, goal: Point, grid=None, world=None) -> Optional[List[Point]]:
-    """Find path using A* algorithm"""
+
+# Minimal structural typing so we don't import heavy modules here
+class _TileLike(Protocol):
+    walkable: bool
+
+
+class _WorldLike(Protocol):
+    def is_blocked(self, x: int, y: int, grid: Sequence[Sequence[_TileLike]]) -> bool: ...
+
+
+Grid = Sequence[Sequence[_TileLike]]
+OpenItem = Tuple[float, Point]  # (f_score, node)
+
+
+def find_path(
+    start: Point,
+    goal: Point,
+    grid: Optional[Grid] = None,
+    world: Optional[_WorldLike] = None,
+) -> Optional[List[Point]]:
+    """Find a path using the A* algorithm (4-way movement, Manhattan heuristic)."""
+
     def heuristic(a: Point, b: Point) -> float:
-        return abs(a[0] - b[0]) + abs(a[1] - b[1])
-    
+        # Manhattan distance as float to keep all scores homogeneous
+        return float(abs(a[0] - b[0]) + abs(a[1] - b[1]))
+
+    def in_bounds(p: Point) -> bool:
+        if grid is None:
+            return True
+        if not grid:  # empty grid defensive check
+            return False
+        h = len(grid)
+        w = len(grid[0])
+        return 0 <= p[0] < w and 0 <= p[1] < h
+
+    def passable(p: Point) -> bool:
+        if grid is not None:
+            if not grid[p[1]][p[0]].walkable:
+                return False
+        if world is not None and grid is not None:
+            if world.is_blocked(p[0], p[1], grid):
+                return False
+        return True
+
     def get_neighbors(pos: Point) -> List[Point]:
         x, y = pos
-        neighbors = []
-        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-            new_pos = (x + dx, y + dy)
-            
-            # Check bounds
-            if grid and (new_pos[0] < 0 or new_pos[1] < 0 or 
-                        new_pos[1] >= len(grid) or new_pos[0] >= len(grid[0])):
-                continue
-            
-            # Check walkable
-            if grid and not grid[new_pos[1]][new_pos[0]].walkable:
-                continue
-            
-            # Check entity blocking
-            if world and world.is_blocked(new_pos[0], new_pos[1], grid):
-                continue
-            
-            neighbors.append(new_pos)
-        
+        neighbors: List[Point] = []
+        for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+            np = (x + dx, y + dy)
+            if in_bounds(np) and passable(np):
+                neighbors.append(np)
         return neighbors
-    
-    # A* algorithm
-    open_set = [(0, start)]
-    came_from = {}
-    g_score = {start: 0}
-    f_score = {start: heuristic(start, goal)}
-    
-    while open_set:
-        current = heapq.heappop(open_set)[1]
-        
+
+    # A* data
+    open_heap: List[OpenItem] = [(0.0, start)]
+    came_from: Dict[Point, Point] = {}
+    g_score: Dict[Point, float] = {start: 0.0}
+    f_score: Dict[Point, float] = {start: heuristic(start, goal)}
+
+    while open_heap:
+        _, current = heapq.heappop(open_heap)
+
         if current == goal:
-            # Reconstruct path
-            path = []
+            # Reconstruct path (includes start and goal)
+            path: List[Point] = [current]
             while current in came_from:
-                path.append(current)
                 current = came_from[current]
-            path.append(start)
-            return list(reversed(path))
-        
+                path.append(current)
+            path.reverse()
+            return path
+
         for neighbor in get_neighbors(current):
-            tentative_g_score = g_score[current] + 1
-            
-            if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
+            tentative_g = g_score[current] + 1.0  # uniform edge cost
+
+            if neighbor not in g_score or tentative_g < g_score[neighbor]:
                 came_from[neighbor] = current
-                g_score[neighbor] = tentative_g_score
-                f_score[neighbor] = g_score[neighbor] + heuristic(neighbor, goal)
-                heapq.heappush(open_set, (f_score[neighbor], neighbor))
-    
+                g_score[neighbor] = tentative_g
+                f = tentative_g + heuristic(neighbor, goal)
+                f_score[neighbor] = f
+                heapq.heappush(open_heap, (f, neighbor))
+
     return None  # No path found
