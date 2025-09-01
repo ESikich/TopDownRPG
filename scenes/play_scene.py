@@ -100,6 +100,16 @@ class PlayScene(Scene):
             key_name = pygame.key.name(event.key)
             action = input_handler.get_action(key_name)
 
+            # Do not allow most player actions while combat UI is playing messages.
+            # If the combat UI is actively showing a combat sequence or has messages queued,
+            # ignore input to effectively pause the game state until the sequence is done.
+            # However, still allow "pause" and "restart" actions so the player can pause
+            # or restart the game even during combat animations.
+            if self.combat_ui is not None and getattr(self.combat_ui, 'in_combat', False):
+                # Only skip input if the action is not pause or restart
+                if action not in ("pause", "restart"):
+                    return
+
             if action == "pause":
                 from scenes.pause_scene import PauseScene
                 self.scene_manager.push(PauseScene(self.scene_manager, self.config))
@@ -225,8 +235,34 @@ class PlayScene(Scene):
             self.message_log.add_message("There are no stairs here.", 2000)
 
     def update(self, dt: float) -> None:
-        self.message_log.update(dt * 1000)  # Convert to milliseconds
-        self.combat_ui.update(dt)  # Update combat UI
+        """
+        Update the play scene.
+
+        `dt` is the real elapsed time since the last frame in seconds. When
+        combat is active (as tracked by the combat state system), game time
+        should be considered frozen for most UI elements so that messages and
+        HUD effects do not expire during dramatic combat sequences. To
+        accomplish this, we calculate a separate `time_delta_ms` that is
+        zero when combat is active and `dt*1000` otherwise. This value is
+        passed into the message log and HUD update methods. The combat UI
+        always progresses using the real `dt` so that its animations and
+        sequences play out smoothly even while the rest of the game is
+        paused.
+        """
+        # Determine if game time should be frozen
+        freeze_time = False
+        # If combat state system exists and indicates active combat, freeze
+        if hasattr(self, 'combat_state_system') and self.combat_state_system.combat_active:
+            freeze_time = True
+        # Compute elapsed milliseconds for UI updates
+        time_delta_ms = 0.0 if freeze_time else dt * 1000.0
+        # Update message log (handles message expiry)
+        self.message_log.update(time_delta_ms)
+        # Update HUD timers (e.g. damage flashes)
+        if hasattr(self, 'hud'):
+            self.hud.update(time_delta_ms, self.world, self.player_eid)
+        # Always update combat UI using real dt so sequences progress
+        self.combat_ui.update(dt)
 
     def render(self, screen: pygame.Surface) -> None:
         screen.fill((0, 0, 0))
