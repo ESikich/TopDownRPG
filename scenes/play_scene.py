@@ -61,7 +61,12 @@ class PlayScene(Scene):
 
         # Initialize systems WITH combat integration
         self.combat_state_system = CombatStateSystem(self.world, self.player_eid)
-        self.movement_system = MovementSystem(self.world, self.dungeon_grid, self.combat_state_system)
+        self.movement_system = MovementSystem(
+            self.world,
+            self.dungeon_grid,
+            self.combat_state_system,
+            player_eid=self.player_eid,
+        )
         self.combat_system = CombatSystem(self.world, self.rng.rng, self.combat_ui, self.player_eid)
         self.fov_system = FOVSystem(self.world, self.dungeon_grid)
         self.ai_system = AISystem(
