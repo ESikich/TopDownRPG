@@ -10,13 +10,20 @@ class MovementSystem:
         self.dungeon_grid = dungeon_grid
         self.combat_state_system = combat_state_system
     
-    def process(self):
-        """Process all movement requests"""
+    def process(self) -> None:
+        """Process all movement requests.
+
+        Drain the event queue, handle MoveRequested events,
+        and re‑post any other events back into the queue so other systems
+        (like the combat system) can handle them.
+        """
         events = self.world.drain_events()
-        
         for event in events:
             if isinstance(event, MoveRequested):
                 self._handle_move_request(event)
+            else:
+                # Re‑post events we don’t handle (e.g., AttackRequested)
+                self.world.post(event)
     
     def _handle_move_request(self, event: MoveRequested):
         """Handle movement with combat lock checking"""

@@ -14,13 +14,19 @@ class CombatSystem:
         self.combat_ui = combat_ui
         self.player_eid = player_eid  # Need this to determine if player is attacking
     
-    def process(self):
-        """Process all combat events"""
+    def process(self) -> None:
+        """Process all combat events.
+
+        Drain the event queue and handle AttackRequested events.
+        Re‑post any other events so movement and other systems still see them.
+        """
         events = self.world.drain_events()
-        
         for event in events:
             if isinstance(event, AttackRequested):
                 self._handle_attack(event)
+            else:
+                # Re‑post events for other systems
+                self.world.post(event)
     
     def _handle_attack(self, event: AttackRequested):
         """Resolve attack with full UI feedback"""
