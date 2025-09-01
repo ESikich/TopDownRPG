@@ -51,7 +51,6 @@ class MovementSystem:
             
             # Check if tile is walkable
             if not self.dungeon_grid[to_y][to_x].walkable:
-                self.world.post(Message("Blocked by wall!"))
                 return
         
         # Check for entities at target position
@@ -76,7 +75,6 @@ class MovementSystem:
             
             # Check for blocking objects
             if target_blocker and not target_blocker.passable:
-                self.world.post(Message("Blocked!"))
                 return
         
         # Move is valid - update position
