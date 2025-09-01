@@ -17,7 +17,7 @@ def spawn_player(world: World, xy: Point) -> int:
         strength=12, agility=14, intellect=10,
         accuracy=5, evasion=3, crit_chance=10.0, crit_mult=2.0
     ))
-    world.add(eid, CVision(3))
+    world.add(eid, CVision(5))
     world.add(eid, CInventory(20))
     world.add(eid, CEquipment())
     world.add(eid, CSpellbook(["firebolt"]))
