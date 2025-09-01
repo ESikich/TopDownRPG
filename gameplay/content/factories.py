@@ -37,7 +37,9 @@ def spawn_monster(world: World, monster_id: str, xy: Point, rng=None) -> int:
     
     # Add position
     world.add(eid, CPosition(x, y))
-    world.add(eid, CBlocker(False))  # Monsters block movement
+    
+    # FIXED: Monsters should block movement (passable=False)
+    world.add(eid, CBlocker(passable=False))  # This was the key issue!
     
     # Add descriptor
     world.add(eid, CDescriptor(
@@ -58,6 +60,9 @@ def spawn_monster(world: World, monster_id: str, xy: Point, rng=None) -> int:
             else:
                 component = component_class(component_data)
             world.add(eid, component)
+    
+    # DEBUG: Print what we created
+    print(f"Created monster {eid} ({monster_data['name']}) at ({x}, {y})")
     
     return eid
 

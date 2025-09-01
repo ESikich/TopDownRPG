@@ -1,13 +1,14 @@
 # gameplay/ecs/systems/movement_system.py
-"""Movement and collision system"""
+"""Movement system that respects combat locks"""
 from gameplay.ecs.world import World
 from gameplay.ecs.components import CPosition, CBlocker, CHealth
 from core.events import MoveRequested, MoveResolved, Bump, AttackRequested, Message
 
 class MovementSystem:
-    def __init__(self, world: World, dungeon_grid=None):
+    def __init__(self, world: World, dungeon_grid=None, combat_state_system=None):
         self.world = world
         self.dungeon_grid = dungeon_grid
+        self.combat_state_system = combat_state_system
     
     def process(self):
         """Process all movement requests"""
@@ -18,13 +19,21 @@ class MovementSystem:
                 self._handle_move_request(event)
     
     def _handle_move_request(self, event: MoveRequested):
-        """Handle a single movement request"""
+        """Handle movement with combat lock checking"""
         eid = event.eid
         to_x, to_y = event.to_xy
         
         # Get current position
         pos = self.world.get(eid, CPosition)
         if not pos:
+            return
+        
+        from_pos = (pos.x, pos.y)
+        to_pos = (to_x, to_y)
+        
+        # Check combat lock
+        if self.combat_state_system and not self.combat_state_system.can_move_freely(eid, from_pos, to_pos):
+            self.world.post(Message("Cannot flee from combat!"))
             return
         
         # Check bounds
@@ -45,24 +54,27 @@ class MovementSystem:
             if target_eid == eid:
                 continue
                 
-            blocker = self.world.get(target_eid, CBlocker)
-            if blocker and not blocker.passable:
-                # Check if it's a living entity (has health)
-                health = self.world.get(target_eid, CHealth)
-                if health and not health.is_dead:
-                    # Post bump and attack events
-                    self.world.post(Bump(eid, target_eid))
-                    self.world.post(AttackRequested(eid, target_eid))
-                    return
-                else:
-                    self.world.post(Message("Blocked!"))
-                    return
+            # Get target info
+            target_health = self.world.get(target_eid, CHealth)
+            target_blocker = self.world.get(target_eid, CBlocker)
+            
+            # Check for living entities (combat!)
+            if target_health and not target_health.is_dead:
+                print(f"Movement collision: Entity {eid} bumps into living entity {target_eid} - COMBAT!")
+                
+                # Post bump and attack events
+                self.world.post(Bump(eid, target_eid))
+                self.world.post(AttackRequested(eid, target_eid))
+                return
+            
+            # Check for blocking objects
+            if target_blocker and not target_blocker.passable:
+                self.world.post(Message("Blocked!"))
+                return
         
         # Move is valid - update position
-        from_xy = (pos.x, pos.y)
         pos.x = to_x
         pos.y = to_y
         
-        print(f"Entity {eid} moved from {from_xy} to ({to_x}, {to_y})")
-        
-        self.world.post(MoveResolved(eid, from_xy, (to_x, to_y)))
+        print(f"Entity {eid} moved from {from_pos} to ({to_x}, {to_y})")
+        self.world.post(MoveResolved(eid, from_pos, (to_x, to_y)))

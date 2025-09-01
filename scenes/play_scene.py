@@ -1,5 +1,5 @@
 # scenes/play_scene.py
-"""Main gameplay scene"""
+"""Main gameplay scene with dramatic combat UI"""
 
 import random
 import pygame
@@ -10,19 +10,21 @@ from core.events import Message, DescendRequested, EntityDied
 from util.rng import GameRNG
 
 from gameplay.ecs.world import World
-from gameplay.ecs.components import CVisible, CPosition, CDescriptor
+from gameplay.ecs.components import CVisible, CPosition, CDescriptor, CHealth, CBlocker
 from gameplay.ecs.systems.movement_system import MovementSystem
 from gameplay.ecs.systems.combat_system import CombatSystem
 from gameplay.ecs.systems.fov_system import FOVSystem
 from gameplay.ecs.systems.ai_system import AISystem
 from gameplay.ecs.systems.inventory_system import InventorySystem
 from gameplay.ecs.systems.input_system import InputSystem
+from gameplay.ecs.systems.combat_state_system import CombatStateSystem
 from gameplay.dungeon.generator import DungeonGenerator
 from gameplay.dungeon.tiles import TileType
 from gameplay.content.factories import spawn_player, spawn_monster, spawn_item
 
 from ui.hud import HUD
 from ui.message_log import MessageLog
+from ui.combat_ui import CombatUI  # Add this import
 
 
 class PlayScene(Scene):
@@ -51,19 +53,21 @@ class PlayScene(Scene):
         # Spawn some monsters
         self._spawn_monsters()
 
-        # Initialize systems
-        self.movement_system = MovementSystem(self.world, self.dungeon_grid)
-        self.combat_system = CombatSystem(self.world, self.rng.rng)
+        # Initialize UI components FIRST
+        self.hud = HUD(config)
+        self.message_log = MessageLog()
+        self.combat_ui = CombatUI(config)  # Initialize combat UI here
+
+        # Initialize systems WITH combat integration
+        self.combat_state_system = CombatStateSystem(self.world, self.player_eid)
+        self.movement_system = MovementSystem(self.world, self.dungeon_grid, self.combat_state_system)
+        self.combat_system = CombatSystem(self.world, self.rng.rng, self.combat_ui, self.player_eid)
         self.fov_system = FOVSystem(self.world, self.dungeon_grid)
         self.ai_system = AISystem(
             self.world, self.player_eid, self.dungeon_grid, self.rng.rng
         )
         self.inventory_system = InventorySystem(self.world)
         self.input_system = InputSystem(self.world, self.player_eid)
-
-        # UI components
-        self.hud = HUD(config)
-        self.message_log = MessageLog()
 
         # Initial FOV calculation
         self.fov_system._update_fov(self.player_eid)
@@ -97,7 +101,6 @@ class PlayScene(Scene):
 
             if action == "pause":
                 from scenes.pause_scene import PauseScene
-
                 self.scene_manager.push(PauseScene(self.scene_manager, self.config))
                 return
 
@@ -110,27 +113,66 @@ class PlayScene(Scene):
 
             if action and not self.game_over:
                 direction = input_handler.get_direction(action)
+                
+                # DEBUG: Check combat before processing
+                if direction:
+                    player_pos = self.world.get(self.player_eid, CPosition)
+                    if player_pos:
+                        dx, dy = direction.value
+                        target_pos = (player_pos.x + dx, player_pos.y + dy)
+                        self.debug_combat_attempt(player_pos, target_pos)
+                
                 self.input_system.handle_action(action, direction)
-
                 # Process player turn
                 self._process_turn()
 
+    def debug_combat_attempt(self, player_pos, target_pos):
+        """Debug why combat isn't happening"""
+        print(f"\n=== COMBAT DEBUG ===")
+        print(f"Player trying to move from ({player_pos.x}, {player_pos.y}) to {target_pos}")
+        
+        # Check what's at the target position
+        entities_at_target = self.world.entities_at(target_pos[0], target_pos[1])
+        print(f"Entities at target {target_pos}: {entities_at_target}")
+        
+        for target_eid in entities_at_target:
+            if target_eid == self.player_eid:
+                print(f"  - Entity {target_eid}: PLAYER (skipping)")
+                continue
+                
+            pos = self.world.get(target_eid, CPosition)
+            desc = self.world.get(target_eid, CDescriptor)
+            health = self.world.get(target_eid, CHealth)
+            blocker = self.world.get(target_eid, CBlocker)
+            
+            print(f"  - Entity {target_eid}: {desc.name if desc else 'Unknown'}")
+            print(f"    Position: ({pos.x}, {pos.y})")
+            print(f"    Health: {health}")
+            print(f"    Blocker: {blocker}")
+            print(f"    Should trigger combat: {health and not health.is_dead}")
+
     def _process_turn(self) -> None:
-        """Process a complete game turn"""
-        # 1. Process player actions
+        """Process a complete game turn with proper combat management"""
+        # 1. Process combat state changes first
+        self.combat_state_system.process()
+        
+        # 2. Process player actions
         self.movement_system.process()
         self.combat_system.process()
         self.inventory_system.process()
 
-        # 2. Process monster AI and actions
+        # 3. Process monster AI and actions  
+        print("--- MONSTER AI PHASE ---")
         self.ai_system.process()
+        print("--- MONSTER MOVEMENT PHASE ---") 
         self.movement_system.process()
+        print("--- MONSTER COMBAT PHASE ---")
         self.combat_system.process()
 
-        # 3. Update FOV after all movement is complete
+        # 4. Update FOV after all movement is complete
         self.fov_system.process()
 
-        # 4. Process remaining events and check game state
+        # 5. Process remaining events and check game state
         events = self.world.drain_events()
         for event in events:
             if isinstance(event, Message):
@@ -183,6 +225,7 @@ class PlayScene(Scene):
 
     def update(self, dt: float) -> None:
         self.message_log.update(dt * 1000)  # Convert to milliseconds
+        self.combat_ui.update(dt)  # Update combat UI
 
     def render(self, screen: pygame.Surface) -> None:
         screen.fill((0, 0, 0))
@@ -194,6 +237,12 @@ class PlayScene(Scene):
         # Render UI
         self.hud.render(screen, self.world, self.player_eid)
         self.message_log.render(screen)
+        
+        # 🎮 RENDER DRAMATIC COMBAT UI 🎮
+        self.combat_ui.render(screen)
+        
+        # Render combat stats overlay if in combat
+        self.combat_ui.render_combat_stats_overlay(screen, self.world, self.player_eid)
 
     def _render_dungeon(self, screen: pygame.Surface) -> None:
         """Render the dungeon tiles"""
