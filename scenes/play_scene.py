@@ -1,7 +1,7 @@
 # scenes/play_scene.py
 """Main gameplay scene with dramatic combat UI"""
 
-import random
+import time
 import pygame
 from typing import Any
 
@@ -33,7 +33,8 @@ class PlayScene(Scene):
 
         # Initialize game state
         self.world = World()
-        self.rng = GameRNG(config["gameplay"].get("seed", 42))
+        seed = config["gameplay"].get("seed", int(time.time()))
+        self.rng = GameRNG(int(time.time()))
 
         # Generate dungeon
         generator = DungeonGenerator(self.rng.rng)
